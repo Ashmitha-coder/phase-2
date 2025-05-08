@@ -1,0 +1,48 @@
+# Guarding Transactions with AI-Powered Credit Card Fraud Detection and Prevention
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from imblearn.over_sampling import SMOTE
+from sklearn.pipeline import Pipeline
+import warnings
+warnings.filterwarnings('ignore')
+from sklearn.datasets import make_classification
+X, y = make_classification(n_samples=10000,
+                           n_features=30,
+                           n_informative=10,
+                           n_redundant=10,
+                           n_clusters_per_class=1,
+                           weights=[0.995],
+                           flip_y=0,
+                           random_state=42)
+df = pd.DataFrame(X, columns=[f'V{i}' for i in range(1, 31)])
+df['Class'] = y
+np.random.seed(42)
+df['Amount'] = np.random.exponential(scale=100, size=len(df))
+df['Time'] = np.random.randint(0, 172800, size=len(df))  # simulate over 2 days
+X = df.drop('Class', axis=1)
+y = df['Class']
+scaler = StandardScaler()
+X[['Amount', 'Time']] = scaler.fit_transform(X[['Amount', 'Time']])
+sm = SMOTE(random_state=42)
+X_res, y_res = sm.fit_resample(X, y)
+X_train, X_test, y_train, y_test = train_test_split(X_res, y_res, test_size=0.2, random_state=42)
+model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+y_prob = model.predict_proba(X_test)[:, 1]
+print("Classification Report:")
+print(classification_report(y_test, y_pred))
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+print("ROC AUC Score:", roc_auc_score(y_test, y_prob))
+sample = X_test.iloc[0].values.reshape(1, -1)
+prediction = model.predict(sample)[0]
+prob = model.predict_proba(sample)[0][1]
+print(f"\nSample Prediction → Class: {prediction} | Probability of Fraud: {prob*100:.2f}%")
